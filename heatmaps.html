@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Velibs.github.io</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+
+<h1>Heatmaps stations Vélib'</h1>
+<h3>Remplissage des stations</h3>
+
+<div id='map'></div>
+
+<style>
+  #map { min-width: 500px; min-height: 400px; width: 100%;  }
+</style>
+<script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js'></script>
+<link href='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css' rel='stylesheet' />
+<script src='//api.tiles.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.2.0/leaflet-omnivore.min.js'></script>
+<script>
+
+// create a map in the "map" div, set the view to a given place and zoom
+var map = L.map('map').setView([48.9, 2.4], 11);
+
+// add an OpenStreetMap tile layer
+L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+// Omnivore will AJAX-request this file behind the scenes and parse it:
+// note that there are considerations:
+// - The CSV file must contain latitude and longitude values, in column
+//   named roughly latitude and longitude
+// - The file must either be on the same domain as the page that requests it,
+//   or both the server it is requested from and the user's browser must
+//   support CORS.
+omnivore.csv('data/stations.csv').on('ready', function(layer) {
+        this.eachLayer(function(marker) {
+            // Bind a popup to each icon based on the same properties
+            marker.bindPopup(marker.toGeoJSON().properties.station_name + '<br /> <a href="' +
+                marker.toGeoJSON().properties.url_heatmap + '" target="_blank">Ouvrir la heatmap</a>');
+        });
+    }).addTo(map);
+</script>
+
+
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+
+
+
+
+  </body>
+</html>
