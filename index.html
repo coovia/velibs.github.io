@@ -2,32 +2,36 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <title>Velibs.github.io</title>
-
+    <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+    <title>Statistiques sur les stations de Vélibs - Paris - Velibs.github.io</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="stylesheets/knacss.css">
     <link rel="stylesheet" href="stylesheets/styles.css">
-    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
+
+    <link href='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css' rel='stylesheet' />    
   </head>
   <body>
     <div class="wrapper">
-      <header>
+      <header id="header" role="banner" class="line pam">
         <h1>Velibs.github.io</h1>
-        <p>Analyses statistiques sur les vélibs</p>
-
-        <p class="view"><a href="https://github.com/velibs/velibs.github.io">Voir le projet sur Github</a></p>
-
+        <p>Statistiques sur les stations de Vélibs.</p>
+        <div id="search" class="line">
+          <input id="search-input" type="text" placeholder="Indiquez une station" autocomplete="off">
+          <div id="search-suggestions"></div>
+        </div>
       </header>
-      <section>
+      <div id="map"></div>
+      <div id="main" role="main" class="line pam">
 
 <h3>Présentation du projet</h3>
 
 <p>Vélib' est le système de vélos en libre-service de Paris disponible depuis 2007. En plus d'être très pratique pour le déplacement, l'analyse de l'utilisation de ce service est plutôt sympathique.</p>
 <p>Ce projet (velibs.github.io) a pour objectif de fournir er d'analyser des statistiques sur l'utilisation des vélibs.</p>
-<p>Au fur et à mesure de notre travail, nous partagerons sur cette page les graphiques et autres réalisations qui seront librement exploitables par tous.</p>
+<p>Au fur et à mesure, différentes mesures statistiques seront ajoutées pour chaque station.</p>
 <!--
 <pre><code>$ cd your_repo_root/repo_name
 $ git fetch origin
@@ -47,15 +51,159 @@ Nous avons des données de 2007 à 2014 mais non homogènes. Ces dernières ann�
 <p>Nous avons réalisé pour chaque station une <i>heat map</i> qui mesure le nombre de vélib moyen sur environ une année en fonction du jour de semaine (lundi, mardi...) et de l'heure. Cela permet de se faire une bonne idée de l'heure à laquelle on peut trouver ou pas un vélib pour chaque station.</p>
 <p>Exemple pour une station :</p>
 <p><img src="data/png/41617.png" alt=""></p>
-<p><a href="https://github.com/velibs/velibs.github.io/blob/master/data/stations.csv">Accédez à la liste des stations</a> - <a href="heatmaps.html">Accédez à la carte des stations</a> </p>
 
+<h3>Ressources supplémentaires</h3>
 
-      </section>
-      <footer>
-        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+<p><a href="https://github.com/velibs/velibs.github.io/blob/master/data/stations.csv">Accéder à la liste des stations</a> - <a href="https://github.com/velibs/velibs.github.io">Accéder au projet sur Github</a> </p>
+
+      </div>
+      <footer id="footer" role="contentinfo" class="line pam txtcenter">
+        <p><small>Hébergé sur GitHub Pages &mdash; Une création de Jérémy Grèze</small></p>
       </footer>
     </div>
-    <script src="javascripts/scale.fix.js"></script>
-    
+
+
+    <script src='//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/fuse.js/1.1.5/fuse.min.js'></script>
+    <script>
+"use srict";
+
+// create a map in the "map" div, set the view to a given place and zoom
+var map = L.map('map').setView([48.856614, 2.3522219000000177],12);
+
+// add an OpenStreetMap tile layer
+L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+// function to convert a csv to a json
+function csvJSON(csv){
+  var lines=csv.split("\n");
+  var result = [];
+  var headers=lines[0].split(",");
+  for(var i=1;i<lines.length;i++){
+    var obj = {};
+    var currentline=lines[i].split(",");
+    for(var j=0;j<headers.length;j++){
+      obj[headers[j]] = currentline[j];
+    }
+    result.push(obj);
+  }
+  return result; //JavaScript object
+  //return JSON.stringify(result); //JSON
+}
+
+// Two arrays : one with json objects containing informations of the stations, one with marker objects that are on the map
+var list_stations = null;
+var list_markers = [];
+
+// Downloading list_stations and send to the render function
+$( document ).ready(function() {
+  $.ajax({
+    url: "data/stations.csv",
+    context: document.body
+  }).done(function(data) {
+    // we get the list
+    list_stations = csvJSON(data);
+    renderMap(list_stations);
+  });
+});
+
+// Function to clear the map and show all visible stations
+function renderMap(list) {
+  if (list_markers.length > 0) {
+    $.each(list_markers, function (i, e) {
+      map.removeLayer(e);
+    });
+    list_markers = [];
+  }
+  if (list !== null) {
+    $.each(list, function (i, e) {
+        if($.isNumeric(e.lat) && $.isNumeric(e.lon)) {
+          marker = L.marker([e.lat, e.lon]).bindPopup(e.station_name + '<br /> <a href="http://velibs.github.io/data/png/' + e.station_id + '.png" target="_blank">Ouvrir la heatmap</a>');
+          map.addLayer(marker);
+          marker.station_id = e.station_id;
+          list_markers.push(marker);
+        }
+    });
+  }
+}
+
+// Function to show a specific station on the map
+function showStation(id) {
+  console.log(id);
+  if (id !== null && $.isNumeric(id) && list_markers.length > 0) {
+    $.each(list_markers, function (i, e) {
+      if(id === +e.station_id) {
+        e.openPopup();
+        map.setZoomAround(e._latlng, 14, true).setView(e._latlng);
+      }
+    });
+  }
+}
+
+// Function returning stations matching with a string (use fuse.js)
+function getListMatchingString(string) {
+  if (string.length > 0 && list_stations.length > 0) {
+    var options = {
+      includeScore: false,
+      caseSensitive: false,
+      shouldSort: true,
+      threshold: 0.4,
+      location: 0,
+      distance: 50,
+      maxPatternLength: 32,
+      keys: ['station_name', 'station_address']
+    }
+    var fuse = new Fuse(list_stations, options);
+    var result = fuse.search(string);
+    return result;
+  }
+  else {
+    return null;
+  }
+  return false;
+}
+
+// Callbacks on UI events
+var timer = null;
+$suggestions = $('#search-suggestions');
+$('#search-input').on('change keyup', function() {
+  var string = $(this).val();
+  $suggestions.show();
+  if (timer) {
+      window.clearTimeout(timer);
+  }
+  timer = window.setTimeout( function() {
+      timer = null;
+      if (string.length > 0) {
+        result = getListMatchingString(string);
+        renderMap(result);
+        $suggestions.empty();
+        for(var i=0;i<result.length;i++){
+          $suggestions.append('<a href="" data-station-id="' + result[i].station_id + '">' + result[i].station_name + ' (' + result[i].station_address + ')</a><br/>');
+        }
+        if (result.length === 0) {
+          $suggestions.text('Pas de résultat. La recherche porte sur le nom des stations et leurs adresses.')
+        }
+      }
+      else {
+        $suggestions.empty().hide();
+        renderMap(list_stations);
+      }
+  }, 300 );
+}).on('focus', function() {
+  $suggestions.show();
+}).on('focusout', function() {
+  window.setTimeout(function() {$suggestions.hide();}, 100);
+});
+$('#search-suggestions').on('click', 'a', function(event) {
+  event.preventDefault();
+  showStation($(this).data('station-id'));
+});
+
+</script>
+
   </body>
 </html>
